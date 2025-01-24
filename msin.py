@@ -1,5 +1,8 @@
 from flask import Flask, render_template_string, request, send_file, redirect, url_for
 from PyPDF2 import PdfReader, PdfWriter
+from werkzeug.utils import secure_filename
+from pdf2image import convert_from_path
+import zipfile
 import pypdf
 from PIL import Image
 from reportlab.pdfgen import canvas
