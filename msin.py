@@ -723,6 +723,75 @@ def page_numbering():
             )
     return render_template_string(PAGE_NUMBERING_TEMPLATE)
 
+@app.route('/extract_pages', methods=['GET', 'POST'])
+def extract_pages():
+    if request.method == 'POST':
+        # Get file and page range input
+        file = request.files['file']
+        pages_input = request.form['pages']
+
+        # Save the uploaded file
+        file_path = os.path.join('uploads', file.filename)
+        file.save(file_path)
+
+        # Parse page numbers and ranges
+        pages = parse_page_range(pages_input)
+
+        # Extract the specified pages
+        extracted_pdf = extract_pdf_pages(file_path, pages)
+
+        # Save the extracted pages as a new PDF
+        output_path = os.path.join('outputs', 'extracted_pages.pdf')
+        with open(output_path, 'wb') as output_file:
+            extracted_pdf.write(output_file)
+
+        return send_file(output_path, as_attachment=True)
+
+    return render_template_string(EXTRACT_PAGES_HTML)
+
+@app.route('/combine_images', methods=['GET', 'POST'])
+def combine_images():
+    if request.method == 'POST':
+        # Get images
+        images = request.files.getlist('images')
+        image_paths = []
+        
+        for img in images:
+            img_path = os.path.join('uploads', img.filename)
+            img.save(img_path)
+            image_paths.append(img_path)
+
+        # Convert images to PDF
+        output_pdf_path = os.path.join('outputs', 'combined_images.pdf')
+        images = [Image.open(img_path).convert('RGB') for img_path in image_paths]
+        images[0].save(output_pdf_path, save_all=True, append_images=images[1:], resolution=100.0)
+
+        return send_file(output_pdf_path, as_attachment=True)
+
+    return render_template_string(COMBINE_IMAGES_HTML)
+
+def parse_page_range(pages_input):
+    # Split input by commas, handle ranges
+    page_list = []
+    for part in pages_input.split(','):
+        if '-' in part:
+            start, end = part.split('-')
+            page_list.extend(range(int(start), int(end) + 1))
+        else:
+            page_list.append(int(part))
+    return sorted(set(page_list))
+
+def extract_pdf_pages(file_path, pages):
+    pdf_reader = PdfReader(file_path)
+    pdf_writer = PdfWriter()
+
+    # Adjust for 0-based indexing
+    for page_num in pages:
+        if 1 <= page_num <= len(pdf_reader.pages):
+            pdf_writer.add_page(pdf_reader.pages[page_num - 1])
+
+    return pdf_writer
+
 # Run the app
 if __name__ == "__main__":
     app.run(debug=True)
