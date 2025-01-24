@@ -5,6 +5,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 import os
 import io
+from io import BytesIO
+import time
 
 app = Flask(__name__)
 UPLOAD_FOLDER = 'uploads'
@@ -164,6 +166,26 @@ HOME_HTML = """
                         <h5 class="card-title">Create PDF from Images</h5>
                         <p class="card-text">Convert images to a PDF document.</p>
                         <a href="/combine_images" class="btn btn-primary">Go to Image to PDF</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card tool-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-lock fa-icon" style="font-size: 40px;"></i>
+                        <h5 class="card-title">Encrypt PDF</h5>
+                        <p class="card-text">Add password protection to your PDF files.</p>
+                        <a href="/encrypt" class="btn btn-primary">Go to Encrypt PDF</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card tool-card text-center">
+                    <div class="card-body">
+                        <i class="fas fa-unlock fa-icon" style="font-size: 40px;"></i>
+                        <h5 class="card-title">Decrypt PDF</h5>
+                        <p class="card-text">Remove password protection from your PDF files.</p>
+                        <a href="/decrypt" class="btn btn-primary">Go to Decrypt PDF</a>
                     </div>
                 </div>
             </div>
@@ -545,6 +567,60 @@ COMBINE_IMAGES_HTML = """
 </html>
 """
 
+# HTML for Encrypt and Decrypt Pages
+ENCRYPT_DECRYPT_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            margin-top: 30px;
+            font-family: 'Montserrat', sans-serif;
+        }
+        .form-container {
+            background: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+        .btn-primary {
+            background-color: #ff9a9e;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ page_title }}</h1>
+    <div class="container">
+        <div class="form-container">
+            <form method="POST" action="{{ action }}" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="file" class="form-label">Upload PDF</label>
+                    <input type="file" class="form-control" name="file" accept=".pdf" required>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label">Enter Password</label>
+                    <input type="password" class="form-control" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">{{ button_text }}</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
 # Routes
 @app.route("/")
 def home():
@@ -792,6 +868,66 @@ def extract_pdf_pages(file_path, pages):
             pdf_writer.add_page(pdf_reader.pages[page_num - 1])
 
     return pdf_writer
+
+# Encrypt PDF
+@app.route('/encrypt', methods=['GET', 'POST'])
+def encrypt_pdf():
+    if request.method == 'POST':
+        pdf_file = request.files['file']
+        password = request.form['password']
+
+        # Create PDF writer to add encryption
+        reader = PdfReader(pdf_file)
+        writer = PdfWriter()
+
+        start_time = time.time()  # Timing the encryption process
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        # Encrypt the PDF with the provided password
+        output = BytesIO()
+        writer.encrypt(password)
+        writer.write(output)
+        output.seek(0)
+
+        end_time = time.time()  # End time after processing
+        print(f"Encryption Time: {end_time - start_time} seconds")  # Print time for encryption
+
+        return send_file(output, as_attachment=True, download_name="encrypted.pdf", mimetype='application/pdf')
+
+    return render_template_string(ENCRYPT_DECRYPT_HTML, action="/encrypt", page_title="Encrypt PDF", button_text="Encrypt PDF")
+
+# Decrypt PDF
+@app.route('/decrypt', methods=['GET', 'POST'])
+def decrypt_pdf():
+    if request.method == 'POST':
+        pdf_file = request.files['file']
+        password = request.form['password']
+
+        reader = PdfReader(pdf_file)
+
+        # Check if password is correct
+        if reader.decrypt(password) == 0:
+            return "Incorrect password!"
+
+        writer = PdfWriter()
+
+        start_time = time.time()  # Timing the decryption process
+
+        for page in reader.pages:
+            writer.add_page(page)
+
+        output = BytesIO()
+        writer.write(output)
+        output.seek(0)
+
+        end_time = time.time()  # End time after processing
+        print(f"Decryption Time: {end_time - start_time} seconds")  # Print time for decryption
+
+        return send_file(output, as_attachment=True, download_name="decrypted.pdf", mimetype='application/pdf')
+
+    return render_template_string(ENCRYPT_DECRYPT_HTML, action="/decrypt", page_title="Decrypt PDF", button_text="Decrypt PDF")
 
 # Run the app
 if __name__ == "__main__":
