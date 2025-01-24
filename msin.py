@@ -170,7 +170,17 @@ HOME_HTML = """
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card tool-card text-center">
+                    <div class="card tool-card text-center">
+                        <div class="card-body">
+                            <i class="fas fa-compress-arrows-alt fa-icon" style="font-size: 40px;"></i>
+                            <h5 class="card-title">Combine PDF Pages</h5>
+                            <p class="card-text">Merge two PDF pages side by side.</p>
+                            <a href="/merge" class="btn btn-primary">Go to Page Merging</a>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                  <div class="card tool-card text-center">
                     <div class="card-body">
                         <i class="fas fa-lock fa-icon" style="font-size: 40px;"></i>
                         <h5 class="card-title">Encrypt PDF</h5>
@@ -929,6 +939,74 @@ def decrypt_pdf():
 
     return render_template_string(ENCRYPT_DECRYPT_HTML, action="/decrypt", page_title="Decrypt PDF", button_text="Decrypt PDF")
 
+@app.route("/merge", methods=["GET", "POST"])
+def merge_pages():
+    if request.method == "POST":
+        if "file" not in request.files:
+            return "No file uploaded", 400
+
+        file = request.files["file"]
+
+        if file.filename == "":
+            return "No selected file", 400
+
+        if not file.filename.endswith(".pdf"):
+            return "Invalid file type. Only PDFs are allowed.", 400
+
+        # Save the uploaded file
+        input_path = os.path.join(UPLOAD_FOLDER, file.filename)
+        file.save(input_path)
+
+        # Process the PDF
+        output_path = os.path.join(OUTPUT_FOLDER, "output.pdf")
+        try:
+            pdf = pypdf.PdfReader(input_path)
+            width = max(page.mediabox.right for page in pdf.pages) * 2
+            height = max(page.mediabox.top for page in pdf.pages)
+
+            writer = pypdf.PdfWriter()
+
+            for n in range(0, len(pdf.pages), 2):
+                blank = writer.add_blank_page(width=width, height=height)
+                blank.merge_page(pdf.pages[n])
+
+                right = pdf.pages[n].mediabox.right
+
+                try:
+                    blank.merge_translated_page(pdf.pages[n + 1], right, 0)
+                except IndexError:
+                    pass
+
+            writer.write(output_path)
+        except Exception as e:
+            return f"Error processing PDF: {e}", 500
+
+        return send_file(output_path, as_attachment=True, download_name="merged_output.pdf")
+
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Merge PDF Pages</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    </head>
+    <body>
+        <div class="container py-5">
+            <h1 class="text-center mb-4">Merge PDF Pages Side-by-Side</h1>
+            <form action="/merge" method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="file" class="form-label">Upload PDF</label>
+                    <input type="file" class="form-control" name="file" accept=".pdf" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Merge Pages</button>
+            </form>
+        </div>
+    </body>
+    </html>
+    """)
+    
 # Run the app
 if __name__ == "__main__":
     app.run(debug=True)
