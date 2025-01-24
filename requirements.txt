@@ -5,3 +5,4 @@ pdf2image
 pypdf
 Pillow
 reportlab
+gunicorn==23.0.0
