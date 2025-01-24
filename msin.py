@@ -196,6 +196,16 @@ HOME_HTML = """
             <div class="col-md-6">
                 <div class="card tool-card text-center">
                     <div class="card-body">
+                        <i class="fas fa-images fa-icon"></i>
+                        <h5 class="card-title">PDF to Images</h5>
+                        <p class="card-text">Convert your PDF to images and download them.</p>
+                        <a href="/pdf-to-images" class="btn btn-primary">Go to PDF to Images Tool</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card tool-card text-center">
+                    <div class="card-body">
                         <i class="fas fa-unlock fa-icon" style="font-size: 40px;"></i>
                         <h5 class="card-title">Decrypt PDF</h5>
                         <p class="card-text">Remove password protection from your PDF files.</p>
@@ -635,6 +645,45 @@ ENCRYPT_DECRYPT_HTML = """
 </html>
 """
 
+PDF_TO_IMAGES_HTML = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to Images</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #84fab0, #8fd3f4);
+        }
+        .form-container {
+            background: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container py-5">
+        <h1 class="text-center mb-4">PDF to Images</h1>
+        <div class="form-container">
+            <form method="POST" action="/pdf-to-images" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label for="file" class="form-label">Upload PDF</label>
+                    <input type="file" class="form-control" name="file" accept=".pdf" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Convert to Images</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+"""
+
 # Routes
 @app.route("/")
 def home():
@@ -1010,6 +1059,29 @@ def merge_pages():
     </body>
     </html>
     """)
+
+@app.route("/pdf-to-images", methods=["GET", "POST"])
+def pdf_to_images():
+    if request.method == "POST":
+        file = request.files["file"]
+        if file:
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(UPLOAD_FOLDER, filename)
+            file.save(filepath)
+
+            # Convert PDF to images
+            images = convert_from_path(filepath)
+            zip_path = os.path.join(OUTPUT_FOLDER, f"{os.path.splitext(filename)[0]}_images.zip")
+            with zipfile.ZipFile(zip_path, "w") as zipf:
+                for i, image in enumerate(images):
+                    image_filename = f"page_{i + 1}.jpg"
+                    image_path = os.path.join(OUTPUT_FOLDER, image_filename)
+                    image.save(image_path, "JPEG")
+                    zipf.write(image_path, image_filename)
+
+            return send_file(zip_path, as_attachment=True)
+
+    return render_template_string(PDF_TO_IMAGES_HTML)
     
 # Run the app
 if __name__ == "__main__":
